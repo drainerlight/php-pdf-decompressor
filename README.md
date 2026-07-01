@@ -53,7 +53,8 @@ straight to FPDI.
 
 ## Requirements
 
-- PHP **7.4+** (tested through 8.3)
+- **PHP 7.4 or any PHP 8** — supports 7.4, 8.0, 8.1, 8.2, 8.3 (tested in CI on all
+  of these; runs on 8.4 as well).
 - `ext-zlib`
 
 ## Installation

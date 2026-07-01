@@ -6,6 +6,7 @@ namespace PdfDecompressor\Tests\Unit;
 
 use PdfDecompressor\Lexer\Tokenizer;
 use PdfDecompressor\Parser\ObjectParser;
+use PdfDecompressor\Parser\ObjectResolver;
 use PdfDecompressor\Reader\ByteReader;
 use PdfDecompressor\Type\PdfArray;
 use PdfDecompressor\Type\PdfBoolean;
@@ -13,6 +14,7 @@ use PdfDecompressor\Type\PdfDictionary;
 use PdfDecompressor\Type\PdfName;
 use PdfDecompressor\Type\PdfNull;
 use PdfDecompressor\Type\PdfNumeric;
+use PdfDecompressor\Type\PdfObject;
 use PdfDecompressor\Type\PdfReference;
 use PdfDecompressor\Type\PdfStream;
 use PdfDecompressor\Type\PdfString;
@@ -125,6 +127,27 @@ class ObjectParserTest extends TestCase
         $next = $parser->parseObject();
         $this->assertInstanceOf(PdfName::class, $next);
         $this->assertSame('Next', $next->getValue());
+    }
+
+    public function testStreamWithIndirectLengthResolvedViaResolver(): void
+    {
+        // The body deliberately contains the bytes "endstream"; the scan
+        // fallback would truncate there, but an exact resolved /Length must not.
+        $body  = 'AAendstreamBB'; // 13 bytes
+        $input = "<< /Length 99 0 R >>\nstream\n" . $body . "\nendstream";
+
+        $resolver = new class implements ObjectResolver {
+            public function resolve(PdfReference $reference): ?PdfObject
+            {
+                return new PdfNumeric(13);
+            }
+        };
+
+        $parser = new ObjectParser(new Tokenizer(new ByteReader($input)), $resolver);
+        /** @var PdfStream $stream */
+        $stream = $parser->parseObject();
+        $this->assertInstanceOf(PdfStream::class, $stream);
+        $this->assertSame($body, $stream->getData());
     }
 
     public function testParseIndirectObject(): void

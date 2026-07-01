@@ -33,9 +33,13 @@ final class ObjectParser
     /** @var Tokenizer */
     private $tokenizer;
 
-    public function __construct(Tokenizer $tokenizer)
+    /** @var ObjectResolver|null */
+    private $resolver;
+
+    public function __construct(Tokenizer $tokenizer, ?ObjectResolver $resolver = null)
     {
         $this->tokenizer = $tokenizer;
+        $this->resolver  = $resolver;
     }
 
     public function getTokenizer(): Tokenizer
@@ -224,7 +228,7 @@ final class ObjectParser
         }
         $dataStart = $reader->getPosition();
 
-        $length = $this->directLength($dictionary);
+        $length = $this->resolveLength($dictionary);
         if ($length !== null) {
             $data     = $reader->readBytes($length);
             $endToken = $this->tokenizer->nextToken();
@@ -239,15 +243,23 @@ final class ObjectParser
     }
 
     /**
-     * @return int|null the /Length value if it is a direct non-negative integer
+     * Resolve /Length to a non-negative integer: directly when present, or via
+     * the injected resolver when it is an indirect reference. Returns null when
+     * unresolvable, so the caller falls back to scanning for 'endstream'.
      */
-    private function directLength(PdfDictionary $dictionary): ?int
+    private function resolveLength(PdfDictionary $dictionary): ?int
     {
         $length = $dictionary->get('Length');
+
+        if ($length instanceof PdfReference && $this->resolver !== null) {
+            $length = $this->resolver->resolve($length);
+        }
+
         if ($length instanceof PdfNumeric && $length->isInteger()) {
             $value = (int) $length->getValue();
             return $value >= 0 ? $value : null;
         }
+
         return null;
     }
 

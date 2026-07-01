@@ -36,6 +36,9 @@ final class Document implements ObjectResolver
     /** @var array<int,PdfObject|null> */
     private $cache = [];
 
+    /** @var array<int,true> object numbers currently being resolved (cycle guard) */
+    private $resolving = [];
+
     private function __construct(string $bytes, CrossReferenceTable $crossReferenceTable)
     {
         $this->bytes               = $bytes;
@@ -99,20 +102,30 @@ final class Document implements ObjectResolver
                 "Object {$objectNumber} lives in an object stream; resolved in phase 3."
             );
         }
-
-        $reader = new ByteReader($this->bytes);
-        $reader->setPosition($entry->getOffset());
-        $parser   = new ObjectParser(new Tokenizer($reader), $this);
-        $indirect = $parser->parseIndirectObject();
-
-        if ($indirect->getObjectNumber() !== $objectNumber) {
+        if (isset($this->resolving[$objectNumber])) {
             throw new CrossReferenceException(
-                "Cross-reference offset for object {$objectNumber} points at object "
-                . $indirect->getObjectNumber() . '.'
+                "Circular reference while resolving object {$objectNumber}."
             );
         }
 
-        return $this->cache[$objectNumber] = $indirect->getValue();
+        $this->resolving[$objectNumber] = true;
+        try {
+            $reader = new ByteReader($this->bytes);
+            $reader->setPosition($entry->getOffset());
+            $parser   = new ObjectParser(new Tokenizer($reader), $this);
+            $indirect = $parser->parseIndirectObject();
+
+            if ($indirect->getObjectNumber() !== $objectNumber) {
+                throw new CrossReferenceException(
+                    "Cross-reference offset for object {$objectNumber} points at object "
+                    . $indirect->getObjectNumber() . '.'
+                );
+            }
+
+            return $this->cache[$objectNumber] = $indirect->getValue();
+        } finally {
+            unset($this->resolving[$objectNumber]);
+        }
     }
 
     /**

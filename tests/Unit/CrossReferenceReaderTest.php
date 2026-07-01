@@ -45,6 +45,38 @@ class CrossReferenceReaderTest extends TestCase
     }
 
     /**
+     * Synthetic incremental update: an original section plus a newer section that
+     * redefines object 1 and adds object 3, linked via /Prev. Verifies that the
+     * newest entry wins and older-only entries survive the merge.
+     */
+    public function testPrevChainMergeNewestWins(): void
+    {
+        $header   = "%PDF-1.4\n";
+        $section1 = "xref\n1 2\n"
+            . "0000000100 00000 n \n"   // obj1 -> 100 (old)
+            . "0000000150 00000 n \n"   // obj2 -> 150
+            . "trailer\n<< /Size 4 /Root 1 0 R >>\n";
+
+        $s1     = strlen($header);                 // offset of section1's "xref"
+        $prefix = $header . $section1;
+        $s2     = strlen($prefix);                 // offset of section2's "xref"
+
+        $section2 = "xref\n1 1\n"
+            . "0000000200 00000 n \n"              // obj1 -> 200 (new, must win)
+            . "3 1\n"
+            . "0000000300 00000 n \n"              // obj3 -> 300
+            . "trailer\n<< /Size 4 /Root 1 0 R /Prev {$s1} >>\n";
+
+        $pdf = $prefix . $section2 . "startxref\n{$s2}\n%%EOF";
+
+        $table = (new CrossReferenceReader())->read($pdf);
+
+        $this->assertSame(200, $table->get(1)->getOffset(), 'newest section must win for obj1');
+        $this->assertSame(150, $table->get(2)->getOffset(), 'older-only obj2 must survive via /Prev');
+        $this->assertSame(300, $table->get(3)->getOffset());
+    }
+
+    /**
      * Synthetic cross-reference stream exercising the /W + /Index binary decoding
      * in isolation: W = [1,1,1], no filter, entries for objects 0..2.
      */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PdfDecompressor\Tests\Integration;
 
 use PdfDecompressor\Document\Document;
+use PdfDecompressor\Exception\CrossReferenceException;
 use PdfDecompressor\Exception\EncryptionNotSupportedException;
 use PdfDecompressor\Exception\NotImplementedException;
 use PdfDecompressor\Type\PdfDictionary;
@@ -56,6 +57,27 @@ class DocumentTest extends TestCase
 
         $this->expectException(NotImplementedException::class);
         $document->getObject($compressedNumber);
+    }
+
+    public function testSelfReferentialStreamLengthIsRejected(): void
+    {
+        // Object 1 is a stream whose /Length points back at object 1 -> resolving
+        // it must fail with a clear error instead of recursing forever.
+        $header = "%PDF-1.4\n";
+        $object = "1 0 obj\n<< /Length 1 0 R >>\nstream\nABCD\nendstream\nendobj\n";
+        $offset = strlen($header);
+        $prefix = $header . $object;
+        $xrefAt = strlen($prefix);
+
+        $xref = "xref\n0 2\n0000000000 65535 f \n"
+            . sprintf('%010d', $offset) . " 00000 n \n"
+            . "trailer\n<< /Size 2 /Root 1 0 R >>\n";
+        $pdf = $prefix . $xref . "startxref\n{$xrefAt}\n%%EOF";
+
+        $document = Document::parse($pdf);
+
+        $this->expectException(CrossReferenceException::class);
+        $document->getObject(1);
     }
 
     public function testEncryptedPdfIsRejected(): void

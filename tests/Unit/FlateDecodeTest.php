@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Tests\Unit;
+namespace PdfDecompressor\Tests\Unit;
 
-use PdfUnstream\Exception\FilterException;
-use PdfUnstream\Filter\FlateDecode;
+use PdfDecompressor\Exception\FilterException;
+use PdfDecompressor\Filter\FlateDecode;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @covers \PdfUnstream\Filter\FlateDecode
+ * @covers \PdfDecompressor\Filter\FlateDecode
  */
 class FlateDecodeTest extends TestCase
 {

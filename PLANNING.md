@@ -1,4 +1,4 @@
-# pdf-unstream — Projektplanung
+# php-pdf-decompressor — Projektplanung
 
 ## 1. Problem & Ziel
 
@@ -44,7 +44,7 @@ Konzeptionell ist das der `qpdf --object-streams=disable --stream-data=uncompres
 ## 4. Öffentliche API (Zielbild)
 
 ```php
-use PdfUnstream\Normalizer;
+use PdfDecompressor\Normalizer;
 
 $normalizer = new Normalizer();
 
@@ -112,7 +112,7 @@ Rohbytes
 - **Phase 3 — Object-Streams:** ObjStm entpacken, Objekte auflösbar machen.
 - **Phase 4 — Writer:** klassische PDF 1.4 neu schreiben; Integrationstest
   `compressed.pdf → normalize → entspricht funktional expected_classic.pdf`.
-- **Phase 5 — Fassade/CLI:** `bin/pdf-unstream in.pdf out.pdf`, Fehlerbehandlung.
+- **Phase 5 — Fassade/CLI:** `bin/pdf-decompress in.pdf out.pdf`, Fehlerbehandlung.
 - **Phase 6 — optional:** FPDI-Bridge-Reader an der `CrossReference`-Naht.
 
 ## 8. Definition of Done (MVP = bis Phase 4)

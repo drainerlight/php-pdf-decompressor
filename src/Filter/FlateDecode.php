@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Filter;
+namespace PdfDecompressor\Filter;
 
-use PdfUnstream\Exception\FilterException;
+use PdfDecompressor\Exception\FilterException;
 
 /**
  * FlateDecode filter (ISO 32000-1, 7.4.4) with predictor support (7.4.4.4).

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Tests\Unit;
+namespace PdfDecompressor\Tests\Unit;
 
-use PdfUnstream\Exception\NotImplementedException;
-use PdfUnstream\Exception\PdfUnstreamException;
-use PdfUnstream\Normalizer;
+use PdfDecompressor\Exception\NotImplementedException;
+use PdfDecompressor\Exception\PdfDecompressorException;
+use PdfDecompressor\Normalizer;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @covers \PdfUnstream\Normalizer
+ * @covers \PdfDecompressor\Normalizer
  */
 class NormalizerDetectionTest extends TestCase
 {
@@ -36,7 +36,7 @@ class NormalizerDetectionTest extends TestCase
 
     public function testNormalizeRejectsNonPdfInput(): void
     {
-        $this->expectException(PdfUnstreamException::class);
+        $this->expectException(PdfDecompressorException::class);
         (new Normalizer())->normalize('just some bytes, not a pdf');
     }
 

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Exception;
+namespace PdfDecompressor\Exception;
 
 /**
  * Base type for all exceptions thrown by this library.
  */
-class PdfUnstreamException extends \RuntimeException
+class PdfDecompressorException extends \RuntimeException
 {
 }

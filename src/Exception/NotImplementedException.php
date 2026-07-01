@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Exception;
+namespace PdfDecompressor\Exception;
 
 /**
  * Thrown by features that are planned but not yet implemented.
  */
-class NotImplementedException extends PdfUnstreamException
+class NotImplementedException extends PdfDecompressorException
 {
 }

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream\Tests\Integration;
+namespace PdfDecompressor\Tests\Integration;
 
-use PdfUnstream\Exception\NotImplementedException;
-use PdfUnstream\Normalizer;
+use PdfDecompressor\Exception\NotImplementedException;
+use PdfDecompressor\Normalizer;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  * marked incomplete rather than failing, so the suite communicates intent
  * without going red.
  *
- * @covers \PdfUnstream\Normalizer
+ * @covers \PdfDecompressor\Normalizer
  */
 class NormalizeFixtureTest extends TestCase
 {
@@ -62,7 +62,7 @@ class NormalizeFixtureTest extends TestCase
         }
 
         $out = $this->normalizeCompressedFixtureOrSkip();
-        $tmp = tempnam(sys_get_temp_dir(), 'unstream_') . '.pdf';
+        $tmp = tempnam(sys_get_temp_dir(), 'pdfdecomp_') . '.pdf';
         file_put_contents($tmp, $out);
 
         try {

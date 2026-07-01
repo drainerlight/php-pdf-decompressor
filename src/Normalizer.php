@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PdfUnstream;
+namespace PdfDecompressor;
 
-use PdfUnstream\Exception\NotImplementedException;
-use PdfUnstream\Exception\PdfUnstreamException;
+use PdfDecompressor\Exception\NotImplementedException;
+use PdfDecompressor\Exception\PdfDecompressorException;
 
 /**
  * Facade for converting a PDF 1.5+ that uses compressed cross-reference streams
@@ -22,12 +22,12 @@ final class Normalizer
     /**
      * Convert PDF bytes into a classic-structure PDF and return the new bytes.
      *
-     * @throws PdfUnstreamException on unreadable input or unsupported features
+     * @throws PdfDecompressorException on unreadable input or unsupported features
      */
     public function normalize(string $pdfBytes): string
     {
         if ($pdfBytes === '' || strncmp($pdfBytes, '%PDF-', 5) !== 0) {
-            throw new PdfUnstreamException('Input does not look like a PDF (missing %PDF- header).');
+            throw new PdfDecompressorException('Input does not look like a PDF (missing %PDF- header).');
         }
 
         // Phase 1-4: parse -> resolve xref (table/stream) -> unpack object streams
@@ -40,19 +40,19 @@ final class Normalizer
     /**
      * Read a PDF file, normalize it and write the result to $outputPath.
      *
-     * @throws PdfUnstreamException on I/O errors or unsupported input
+     * @throws PdfDecompressorException on I/O errors or unsupported input
      */
     public function normalizeFile(string $inputPath, string $outputPath): void
     {
         $bytes = @file_get_contents($inputPath);
         if ($bytes === false) {
-            throw new PdfUnstreamException('Cannot read input file: ' . $inputPath);
+            throw new PdfDecompressorException('Cannot read input file: ' . $inputPath);
         }
 
         $result = $this->normalize($bytes);
 
         if (@file_put_contents($outputPath, $result) === false) {
-            throw new PdfUnstreamException('Cannot write output file: ' . $outputPath);
+            throw new PdfDecompressorException('Cannot write output file: ' . $outputPath);
         }
     }
 

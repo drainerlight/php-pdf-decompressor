@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace PdfDecompressor\CrossReference;
 
 use PdfDecompressor\Exception\CrossReferenceException;
-use PdfDecompressor\Filter\FlateDecode;
+use PdfDecompressor\Filter\StreamDecoder;
 use PdfDecompressor\Lexer\Token;
 use PdfDecompressor\Lexer\Tokenizer;
 use PdfDecompressor\Parser\ObjectParser;
 use PdfDecompressor\Reader\ByteReader;
 use PdfDecompressor\Type\PdfArray;
 use PdfDecompressor\Type\PdfDictionary;
-use PdfDecompressor\Type\PdfName;
 use PdfDecompressor\Type\PdfNumeric;
 use PdfDecompressor\Type\PdfObject;
 use PdfDecompressor\Type\PdfStream;
@@ -186,7 +185,7 @@ final class CrossReferenceReader
             $index = [0, $size ?? 0];
         }
 
-        $data    = $this->decodeStream($stream);
+        $data    = StreamDecoder::decode($stream);
         $entries = [];
         $pos     = 0;
         $length  = strlen($data);
@@ -218,57 +217,6 @@ final class CrossReferenceReader
         }
 
         return ['entries' => $entries, 'dict' => $dictionary];
-    }
-
-    private function decodeStream(PdfStream $stream): string
-    {
-        $dictionary = $stream->getDictionary();
-        $filter     = $dictionary->get('Filter');
-        if ($filter === null) {
-            return $stream->getData(); // unencoded cross-reference stream
-        }
-
-        $name = $this->singleFilterName($filter);
-        if ($name !== 'FlateDecode') {
-            throw new CrossReferenceException("Unsupported cross-reference stream filter '{$name}'.");
-        }
-
-        return FlateDecode::decode($stream->getData(), $this->decodeParms($dictionary->get('DecodeParms')));
-    }
-
-    private function singleFilterName(PdfObject $filter): string
-    {
-        if ($filter instanceof PdfName) {
-            return $filter->getValue();
-        }
-        if ($filter instanceof PdfArray && $filter->count() === 1 && $filter->get(0) instanceof PdfName) {
-            /** @var PdfName $name */
-            $name = $filter->get(0);
-            return $name->getValue();
-        }
-        throw new CrossReferenceException('Unsupported /Filter form on cross-reference stream.');
-    }
-
-    /**
-     * @return array<string,int>
-     */
-    private function decodeParms(?PdfObject $parms): array
-    {
-        if ($parms instanceof PdfArray) {
-            $parms = $parms->get(0); // one entry per filter; xref uses a single one
-        }
-        if (!$parms instanceof PdfDictionary) {
-            return [];
-        }
-
-        $result = [];
-        foreach (['Predictor', 'Colors', 'BitsPerComponent', 'Columns'] as $key) {
-            $value = $this->intValue($parms->get($key));
-            if ($value !== null) {
-                $result[$key] = $value;
-            }
-        }
-        return $result;
     }
 
     private function readBigEndian(string $data, int $pos, int $length): int

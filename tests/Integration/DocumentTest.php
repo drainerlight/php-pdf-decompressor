@@ -7,7 +7,6 @@ namespace PdfDecompressor\Tests\Integration;
 use PdfDecompressor\Document\Document;
 use PdfDecompressor\Exception\CrossReferenceException;
 use PdfDecompressor\Exception\EncryptionNotSupportedException;
-use PdfDecompressor\Exception\NotImplementedException;
 use PdfDecompressor\Type\PdfDictionary;
 use PdfDecompressor\Type\PdfReference;
 use PHPUnit\Framework\TestCase;
@@ -42,21 +41,31 @@ class DocumentTest extends TestCase
         $this->assertSame(2, $pages->get('Count')->getValue());
     }
 
-    public function testCompressedObjectAccessIsDeferredToPhase3(): void
+    /**
+     * The Phase-3 payoff: in compressed.pdf the Catalog and Pages live inside an
+     * object stream, so this exercises full ObjStm unpacking end-to-end.
+     */
+    public function testResolvesCatalogAndPagesFromObjectStreamPdf(): void
     {
         $document = Document::parse(file_get_contents(self::FIXTURES . '/compressed.pdf'));
 
-        $compressedNumber = null;
-        foreach ($document->getCrossReferenceTable()->getEntries() as $number => $entry) {
-            if ($entry->isCompressed()) {
-                $compressedNumber = $number;
-                break;
-            }
-        }
-        $this->assertNotNull($compressedNumber, 'expected at least one compressed object');
+        $rootReference = $document->getTrailer()->get('Root');
+        $this->assertInstanceOf(PdfReference::class, $rootReference);
 
-        $this->expectException(NotImplementedException::class);
-        $document->getObject($compressedNumber);
+        // Guard: the test is only meaningful if the catalog really is compressed.
+        $rootEntry = $document->getCrossReferenceTable()->get($rootReference->getObjectNumber());
+        $this->assertTrue($rootEntry->isCompressed(), 'catalog is expected to live in an object stream');
+
+        /** @var PdfDictionary $catalog */
+        $catalog = $document->getObject($rootReference->getObjectNumber());
+        $this->assertInstanceOf(PdfDictionary::class, $catalog);
+        $this->assertSame('Catalog', $catalog->get('Type')->getValue());
+
+        /** @var PdfDictionary $pages */
+        $pages = $document->resolve($catalog->get('Pages'));
+        $this->assertInstanceOf(PdfDictionary::class, $pages);
+        $this->assertSame('Pages', $pages->get('Type')->getValue());
+        $this->assertSame(2, $pages->get('Count')->getValue());
     }
 
     public function testSelfReferentialStreamLengthIsRejected(): void

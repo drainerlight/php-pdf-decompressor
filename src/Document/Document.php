@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace PdfDecompressor\Document;
 
+use PdfDecompressor\CrossReference\CrossReferenceEntry;
 use PdfDecompressor\CrossReference\CrossReferenceReader;
 use PdfDecompressor\CrossReference\CrossReferenceTable;
 use PdfDecompressor\Exception\CrossReferenceException;
 use PdfDecompressor\Exception\EncryptionNotSupportedException;
-use PdfDecompressor\Exception\NotImplementedException;
 use PdfDecompressor\Lexer\Tokenizer;
+use PdfDecompressor\ObjectStream\ObjectStream;
 use PdfDecompressor\Parser\ObjectParser;
 use PdfDecompressor\Parser\ObjectResolver;
 use PdfDecompressor\Reader\ByteReader;
 use PdfDecompressor\Type\PdfDictionary;
 use PdfDecompressor\Type\PdfObject;
 use PdfDecompressor\Type\PdfReference;
+use PdfDecompressor\Type\PdfStream;
 
 /**
  * A parsed PDF: cross-reference index + on-demand object access.
@@ -38,6 +40,9 @@ final class Document implements ObjectResolver
 
     /** @var array<int,true> object numbers currently being resolved (cycle guard) */
     private $resolving = [];
+
+    /** @var array<int,ObjectStream> parsed object streams keyed by their object number */
+    private $objectStreams = [];
 
     private function __construct(string $bytes, CrossReferenceTable $crossReferenceTable)
     {
@@ -82,10 +87,10 @@ final class Document implements ObjectResolver
 
     /**
      * Fetch the value of an indirect object by its number, or null if the object
-     * is unknown or marked free.
+     * is unknown or marked free. Handles both uncompressed objects and objects
+     * stored inside an object stream (ObjStm).
      *
-     * @throws NotImplementedException for objects stored inside an object stream
-     * @throws CrossReferenceException if the stored offset does not hold that object
+     * @throws CrossReferenceException on a bad offset or a circular reference
      */
     public function getObject(int $objectNumber): ?PdfObject
     {
@@ -97,11 +102,6 @@ final class Document implements ObjectResolver
         if ($entry === null || $entry->isFree()) {
             return $this->cache[$objectNumber] = null;
         }
-        if ($entry->isCompressed()) {
-            throw new NotImplementedException(
-                "Object {$objectNumber} lives in an object stream; resolved in phase 3."
-            );
-        }
         if (isset($this->resolving[$objectNumber])) {
             throw new CrossReferenceException(
                 "Circular reference while resolving object {$objectNumber}."
@@ -110,22 +110,60 @@ final class Document implements ObjectResolver
 
         $this->resolving[$objectNumber] = true;
         try {
-            $reader = new ByteReader($this->bytes);
-            $reader->setPosition($entry->getOffset());
-            $parser   = new ObjectParser(new Tokenizer($reader), $this);
-            $indirect = $parser->parseIndirectObject();
+            $value = $entry->isCompressed()
+                ? $this->readCompressedObject($objectNumber, $entry)
+                : $this->readUncompressedObject($objectNumber, $entry);
 
-            if ($indirect->getObjectNumber() !== $objectNumber) {
-                throw new CrossReferenceException(
-                    "Cross-reference offset for object {$objectNumber} points at object "
-                    . $indirect->getObjectNumber() . '.'
-                );
-            }
-
-            return $this->cache[$objectNumber] = $indirect->getValue();
+            return $this->cache[$objectNumber] = $value;
         } finally {
             unset($this->resolving[$objectNumber]);
         }
+    }
+
+    private function readUncompressedObject(int $objectNumber, CrossReferenceEntry $entry): PdfObject
+    {
+        $reader = new ByteReader($this->bytes);
+        $reader->setPosition($entry->getOffset());
+        $indirect = (new ObjectParser(new Tokenizer($reader), $this))->parseIndirectObject();
+
+        if ($indirect->getObjectNumber() !== $objectNumber) {
+            throw new CrossReferenceException(
+                "Cross-reference offset for object {$objectNumber} points at object "
+                . $indirect->getObjectNumber() . '.'
+            );
+        }
+
+        return $indirect->getValue();
+    }
+
+    private function readCompressedObject(int $objectNumber, CrossReferenceEntry $entry): PdfObject
+    {
+        $objectStream = $this->getObjectStream($entry->getStreamObjectNumber());
+
+        $value = $objectStream->getObjectByNumber($objectNumber);
+        if ($value === null) {
+            throw new CrossReferenceException(
+                "Object {$objectNumber} not found in object stream {$entry->getStreamObjectNumber()}."
+            );
+        }
+
+        return $value;
+    }
+
+    private function getObjectStream(int $streamObjectNumber): ObjectStream
+    {
+        if (isset($this->objectStreams[$streamObjectNumber])) {
+            return $this->objectStreams[$streamObjectNumber];
+        }
+
+        $container = $this->getObject($streamObjectNumber);
+        if (!$container instanceof PdfStream) {
+            throw new CrossReferenceException(
+                "Object stream {$streamObjectNumber} is not a stream object."
+            );
+        }
+
+        return $this->objectStreams[$streamObjectNumber] = ObjectStream::fromStream($container);
     }
 
     /**

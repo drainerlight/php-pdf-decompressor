@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Locate the Composer autoloader whether run from the package itself or as an
+// installed dependency (vendor/bin).
+$autoloaders = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+foreach ($autoloaders as $autoloader) {
+    if (is_file($autoloader)) {
+        require $autoloader;
+        break;
+    }
+}
+
+if (!class_exists(\PdfDecompressor\Console\Cli::class)) {
+    fwrite(STDERR, "Could not locate the Composer autoloader. Run 'composer install'.\n");
+    exit(1);
+}
+
+exit((new \PdfDecompressor\Console\Cli())->run($argv, STDOUT, STDERR));

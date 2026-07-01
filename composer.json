@@ -19,6 +19,9 @@
     ],
     "homepage": "https://github.com/drainerlight/php-pdf-decompressor",
     "license": "MIT",
+    "bin": [
+        "bin/pdf-decompress"
+    ],
     "authors": [
         {
             "name": "drainerlight"

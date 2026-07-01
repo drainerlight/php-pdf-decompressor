@@ -52,6 +52,15 @@ if (Normalizer::isCompressed(file_get_contents('input.pdf'))) {
 // …then feed output.pdf to FPDI's free parser as usual.
 ```
 
+### Command line
+
+```bash
+vendor/bin/pdf-decompress [--force] [--quiet] input.pdf output.pdf
+```
+
+Exit codes: `0` success, `1` runtime error (I/O, unreadable/encrypted PDF), `2`
+usage error.
+
 ## Status
 
 **Working (MVP).** `Normalizer::normalize()` converts real PDF 1.5+ files (object

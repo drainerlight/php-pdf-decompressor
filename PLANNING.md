@@ -116,7 +116,8 @@ Rohbytes
   PdfWriter (klassische Objekte + xref-Tabelle, Objektnummern erhalten, Container
   weggelassen), `Normalizer::normalize()` verdrahtet. Verifiziert gegen den echten
   FPDI-Free-Parser inkl. realer mehrseitiger Produktions-PDFs.
-- **Phase 5 — Fassade/CLI:** `bin/pdf-decompress in.pdf out.pdf`, Fehlerbehandlung.
+- **Phase 5 — Fassade/CLI (erledigt):** testbare `Console\Cli` (Streams injizierbar,
+  Exit-Codes 0/1/2) + dünnes Binary `bin/pdf-decompress`; als Composer-`bin` registriert.
 - **Phase 6 — optional:** FPDI-Bridge-Reader an der `CrossReference`-Naht.
 
 ## 8. Definition of Done (MVP = bis Phase 4)

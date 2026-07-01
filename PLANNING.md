@@ -106,8 +106,10 @@ Rohbytes
   (implementiert + getestet), `Normalizer::isCompressed()` (Heuristik + Test),
   `Normalizer::normalize()` als definierter Platzhalter (`NotImplementedException`)
   mit Contract-Tests, die die Zielsemantik festschreiben.
-- **Phase 1 — Objekt-Parser:** ByteReader, Tokenizer, ObjectParser für klassische
-  Objekte; Unit-Tests je Typ.
+- **Phase 1 — Objekt-Parser (erledigt):** ByteReader, Tokenizer + Token,
+  Type-Hierarchie (PdfNull/Boolean/Numeric/String/Name/Array/Dictionary/Reference/
+  Stream/IndirectObject), ObjectParser inkl. Referenz-Disambiguierung und
+  Stream-Lesen; Unit-Tests je Typ.
 - **Phase 2 — Cross-Reference:** TableReader + StreamReader, Objektindex, Hybrid & Prev.
 - **Phase 3 — Object-Streams:** ObjStm entpacken, Objekte auflösbar machen.
 - **Phase 4 — Writer:** klassische PDF 1.4 neu schreiben; Integrationstest
@@ -133,3 +135,19 @@ Rohbytes
   bzw. strukturell (keine ObjStm/XRef-Streams, korrekte Objektzahl).
 - **Round-Trip:** Objekt-Inhalte der Ausgabe gegen die qpdf-Referenz
   `expected_classic.pdf` vergleichen.
+
+## 10. Bewusste Grenzen nach Phase 1 (in späteren Phasen zu schließen)
+
+1. **Indirekte `/Length` + Scan-Fallback:** Ist `/Length` eine indirekte Referenz,
+   kann sie erst mit dem XRef aufgelöst werden (Phase 2). Solange greift ein Scan
+   nach `endstream`. Enthalten die (komprimierten) Stream-Bytes selbst die Folge
+   `endstream`, schneidet der Scan zu früh ab. → In Phase 2 `/Length` echt auflösen
+   und den Scan nur noch als letzte Rückfallebene nutzen.
+2. **Literal-String-EOL:** Rohe CR/CRLF innerhalb `(...)` werden **nicht** zu LF
+   normalisiert (Abweichung von 7.3.4.2). Bewusst: für verlustfreies Neuschreiben
+   werden die Originalbytes bewahrt; die korrekte Escapes/Erhaltung beim Schreiben
+   ist Sache von Phase 4.
+3. **Keine Referenzauflösung:** Der ObjectParser liefert `PdfReference` als Wert,
+   löst sie aber nicht auf — das übernimmt der Objektindex in Phase 2/3.
+4. **Verschlüsselung** (`/Encrypt`) wird in Phase 1 noch nicht erkannt/abgewiesen
+   (vorgesehen für die Trailer-Auswertung in Phase 2).

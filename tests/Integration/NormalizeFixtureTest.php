@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace PdfDecompressor\Tests\Integration;
 
-use PdfDecompressor\Exception\NotImplementedException;
+use PdfDecompressor\Document\Document;
 use PdfDecompressor\Normalizer;
+use PdfDecompressor\Type\PdfDictionary;
 use PHPUnit\Framework\TestCase;
 
 /**
- * End-to-end contract for the normalizer. These tests define the target
- * behaviour for the MVP (phase 4). While normalize() is unimplemented they are
- * marked incomplete rather than failing, so the suite communicates intent
- * without going red.
+ * End-to-end tests for the full normalize pipeline against the compressed fixture
+ * (a real PDF 1.5 with an object stream + cross-reference stream).
  *
  * @covers \PdfDecompressor\Normalizer
  */
@@ -20,40 +19,56 @@ class NormalizeFixtureTest extends TestCase
 {
     private const FIXTURES = __DIR__ . '/../fixtures';
 
-    /**
-     * The core promise: a compressed PDF becomes a classic-structure PDF that
-     * contains no object streams and no cross-reference streams.
-     */
+    private function normalizeCompressedFixture(): string
+    {
+        return (new Normalizer())->normalize(file_get_contents(self::FIXTURES . '/compressed.pdf'));
+    }
+
     public function testNormalizedOutputHasNoObjectOrXrefStreams(): void
     {
-        $out = $this->normalizeCompressedFixtureOrSkip();
+        $out = $this->normalizeCompressedFixture();
 
-        $this->assertFalse(
-            (bool) preg_match('~/Type\s*/ObjStm\b~', $out),
-            'Normalized output must not contain object streams.'
-        );
-        $this->assertFalse(
-            (bool) preg_match('~/Type\s*/XRef\b~', $out),
-            'Normalized output must not contain cross-reference streams.'
-        );
+        $this->assertSame(0, preg_match('~/Type\s*/ObjStm\b~', $out), 'no object streams expected');
+        $this->assertSame(0, preg_match('~/Type\s*/XRef\b~', $out), 'no cross-reference streams expected');
+        $this->assertFalse(Normalizer::isCompressed($out), 'output must not look compressed anymore');
     }
 
-    /**
-     * The output must start with a classic PDF header and end with %%EOF.
-     */
     public function testNormalizedOutputIsWellFormedClassicPdf(): void
     {
-        $out = $this->normalizeCompressedFixtureOrSkip();
+        $out = $this->normalizeCompressedFixture();
 
         $this->assertSame('%PDF-1.', substr($out, 0, 7));
-        $this->assertNotFalse(strpos($out, 'xref'), 'Expected a classic xref table.');
-        $this->assertNotFalse(strpos($out, '%%EOF'), 'Expected a trailing %%EOF marker.');
+        $this->assertNotFalse(strpos($out, "\nxref\n"), 'expected a classic xref table');
+        $this->assertNotFalse(strpos($out, 'trailer'), 'expected a trailer');
+        $this->assertNotFalse(strpos($out, '%%EOF'), 'expected a trailing %%EOF marker');
     }
 
     /**
-     * Regression guard against the original bug: the free FPDI parser must be
-     * able to open the normalized file. Only runs when FPDI is available on the
-     * include path (dev environments); otherwise skipped.
+     * Self-consistent round trip: re-parse the normalized output with our own
+     * Document and confirm the document graph is intact and fully uncompressed.
+     */
+    public function testNormalizedOutputReparsesAndIsFullyUncompressed(): void
+    {
+        $document = Document::parse($this->normalizeCompressedFixture());
+
+        $rootReference = $document->getTrailer()->get('Root');
+        /** @var PdfDictionary $catalog */
+        $catalog = $document->getObject($rootReference->getObjectNumber());
+        $this->assertSame('Catalog', $catalog->get('Type')->getValue());
+
+        /** @var PdfDictionary $pages */
+        $pages = $document->resolve($catalog->get('Pages'));
+        $this->assertSame('Pages', $pages->get('Type')->getValue());
+        $this->assertSame(2, $pages->get('Count')->getValue());
+
+        foreach ($document->getCrossReferenceTable()->getEntries() as $entry) {
+            $this->assertFalse($entry->isCompressed(), 'normalized output must have no compressed objects');
+        }
+    }
+
+    /**
+     * The regression guard against the original bug: the free FPDI parser must be
+     * able to open the normalized file and see the right number of pages.
      */
     public function testNormalizedOutputIsReadableByFreeFpdiParser(): void
     {
@@ -61,30 +76,15 @@ class NormalizeFixtureTest extends TestCase
             $this->markTestSkipped('setasign/fpdi not installed in this environment.');
         }
 
-        $out = $this->normalizeCompressedFixtureOrSkip();
         $tmp = tempnam(sys_get_temp_dir(), 'pdfdecomp_') . '.pdf';
-        file_put_contents($tmp, $out);
+        file_put_contents($tmp, $this->normalizeCompressedFixture());
 
         try {
             $fpdi  = new \setasign\Fpdi\Fpdi();
             $pages = $fpdi->setSourceFile($tmp);
-            $this->assertGreaterThan(0, $pages);
+            $this->assertSame(2, $pages, 'FPDI free parser should read both pages');
         } finally {
             @unlink($tmp);
-        }
-    }
-
-    /**
-     * Runs normalize() on the compressed fixture, or marks the test incomplete
-     * while the feature is still pending.
-     */
-    private function normalizeCompressedFixtureOrSkip(): string
-    {
-        $bytes = file_get_contents(self::FIXTURES . '/compressed.pdf');
-        try {
-            return (new Normalizer())->normalize($bytes);
-        } catch (NotImplementedException $e) {
-            $this->markTestIncomplete('Normalizer::normalize() not implemented yet (phase 4).');
         }
     }
 }

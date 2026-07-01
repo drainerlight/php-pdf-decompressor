@@ -112,8 +112,10 @@ Rohbytes
   Stream-Lesen; Unit-Tests je Typ.
 - **Phase 2 — Cross-Reference:** TableReader + StreamReader, Objektindex, Hybrid & Prev.
 - **Phase 3 — Object-Streams:** ObjStm entpacken, Objekte auflösbar machen.
-- **Phase 4 — Writer:** klassische PDF 1.4 neu schreiben; Integrationstest
-  `compressed.pdf → normalize → entspricht funktional expected_classic.pdf`.
+- **Phase 4 — Writer (erledigt):** PdfSerializer (Wert→Syntax, /Length direkt),
+  PdfWriter (klassische Objekte + xref-Tabelle, Objektnummern erhalten, Container
+  weggelassen), `Normalizer::normalize()` verdrahtet. Verifiziert gegen den echten
+  FPDI-Free-Parser inkl. realer mehrseitiger Produktions-PDFs.
 - **Phase 5 — Fassade/CLI:** `bin/pdf-decompress in.pdf out.pdf`, Fehlerbehandlung.
 - **Phase 6 — optional:** FPDI-Bridge-Reader an der `CrossReference`-Naht.
 

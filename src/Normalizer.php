@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace PdfDecompressor;
 
-use PdfDecompressor\Exception\NotImplementedException;
+use PdfDecompressor\Document\Document;
 use PdfDecompressor\Exception\PdfDecompressorException;
+use PdfDecompressor\Type\PdfDictionary;
+use PdfDecompressor\Type\PdfName;
+use PdfDecompressor\Type\PdfStream;
+use PdfDecompressor\Writer\PdfWriter;
 
 /**
  * Facade for converting a PDF 1.5+ that uses compressed cross-reference streams
  * and/or object streams into a classic PDF 1.4 structure that legacy parsers
  * (such as FPDI's free parser) can read.
  *
- * This is the public entry point. The heavy lifting (parsing, cross-reference
- * resolution, object-stream unpacking and rewriting) is added in phases 1-4;
- * see PLANNING.md. Until then {@see normalize()} throws NotImplementedException,
- * while {@see isCompressed()} is already usable.
+ * The pipeline: parse the document, resolve every object (unpacking object
+ * streams), drop the object-stream and cross-reference-stream containers, and
+ * rewrite everything as uncompressed indirect objects with a classic cross-
+ * reference table.
  */
 final class Normalizer
 {
@@ -30,11 +34,33 @@ final class Normalizer
             throw new PdfDecompressorException('Input does not look like a PDF (missing %PDF- header).');
         }
 
-        // Phase 1-4: parse -> resolve xref (table/stream) -> unpack object streams
-        // -> rewrite as classic PDF 1.4. Not implemented yet.
-        throw new NotImplementedException(
-            'Normalizer::normalize() is not implemented yet (planned for phase 4, see PLANNING.md).'
-        );
+        $document = Document::parse($pdfBytes);
+        $table    = $document->getCrossReferenceTable();
+
+        $objects = [];
+        foreach ($table->getObjectNumbers() as $objectNumber) {
+            if ($objectNumber === 0) {
+                continue; // object 0 is always the free-list head
+            }
+            $entry = $table->get($objectNumber);
+            if ($entry === null || $entry->isFree()) {
+                continue;
+            }
+
+            $value = $document->getObject($objectNumber);
+            if ($value === null) {
+                continue;
+            }
+            // Drop the containers whose contents we have just inlined as
+            // standalone objects (object streams and cross-reference streams).
+            if ($value instanceof PdfStream && $this->isContainer($value)) {
+                continue;
+            }
+
+            $objects[$objectNumber] = $value;
+        }
+
+        return (new PdfWriter())->write($objects, $this->buildTrailer($document->getTrailer()));
     }
 
     /**
@@ -60,19 +86,34 @@ final class Normalizer
      * Heuristic check whether a PDF uses features the free FPDI parser rejects,
      * i.e. object streams (/Type /ObjStm) or cross-reference streams (/Type /XRef).
      *
-     * NOTE: this is a byte-level heuristic sufficient for "does this need
-     * normalizing?" decisions. A precise, startxref-following detector arrives
-     * with the cross-reference reader in phase 2.
+     * A byte-level heuristic sufficient for "does this need normalizing?"
+     * decisions without fully parsing the file.
      */
     public static function isCompressed(string $pdfBytes): bool
     {
-        if (preg_match('~/Type\s*/ObjStm\b~', $pdfBytes) === 1) {
-            return true;
-        }
-        if (preg_match('~/Type\s*/XRef\b~', $pdfBytes) === 1) {
-            return true;
-        }
+        return preg_match('~/Type\s*/ObjStm\b~', $pdfBytes) === 1
+            || preg_match('~/Type\s*/XRef\b~', $pdfBytes) === 1;
+    }
 
-        return false;
+    private function isContainer(PdfStream $stream): bool
+    {
+        $type = $stream->getDictionary()->get('Type');
+        return $type instanceof PdfName && in_array($type->getValue(), ['ObjStm', 'XRef'], true);
+    }
+
+    /**
+     * Build a minimal classic trailer, keeping only the entries that belong there
+     * and dropping cross-reference-stream specifics (/W, /Index, /Prev, /Type …).
+     * /Size is added by the writer.
+     */
+    private function buildTrailer(PdfDictionary $sourceTrailer): PdfDictionary
+    {
+        $entries = [];
+        foreach (['Root', 'Info', 'ID'] as $key) {
+            if ($sourceTrailer->has($key)) {
+                $entries[$key] = $sourceTrailer->get($key);
+            }
+        }
+        return new PdfDictionary($entries);
     }
 }

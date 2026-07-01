@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PdfDecompressor\Tests\Unit;
 
-use PdfDecompressor\Exception\NotImplementedException;
 use PdfDecompressor\Exception\PdfDecompressorException;
 use PdfDecompressor\Normalizer;
 use PHPUnit\Framework\TestCase;
@@ -40,12 +39,12 @@ class NormalizerDetectionTest extends TestCase
         (new Normalizer())->normalize('just some bytes, not a pdf');
     }
 
-    public function testNormalizeIsNotImplementedYet(): void
+    public function testNormalizeReturnsClassicPdfBytes(): void
     {
-        // Documents the current phase-0 state: valid PDF input is accepted past
-        // the header check but the conversion itself is still pending (phase 4).
-        $bytes = file_get_contents(self::FIXTURES . '/compressed.pdf');
-        $this->expectException(NotImplementedException::class);
-        (new Normalizer())->normalize($bytes);
+        $bytes  = file_get_contents(self::FIXTURES . '/compressed.pdf');
+        $result = (new Normalizer())->normalize($bytes);
+
+        $this->assertStringStartsWith('%PDF-1.4', $result);
+        $this->assertFalse(Normalizer::isCompressed($result));
     }
 }

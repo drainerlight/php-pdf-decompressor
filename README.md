@@ -54,9 +54,11 @@ if (Normalizer::isCompressed(file_get_contents('input.pdf'))) {
 
 ## Status
 
-**Phase 0 (scaffold).** Working and tested: the `FlateDecode` filter incl. PNG/TIFF
-predictors, and `Normalizer::isCompressed()`. The full `Normalizer::normalize()`
-conversion is delivered across phases 1–4 — see [PLANNING.md](PLANNING.md).
+**Working (MVP).** `Normalizer::normalize()` converts real PDF 1.5+ files (object
+streams + cross-reference streams) into a classic PDF 1.4 that the free FPDI parser
+reads — verified end-to-end against FPDI, including multi-page production PDFs.
+See [PLANNING.md](PLANNING.md) for the remaining hardening items (e.g. broken-xref
+rebuild, non-Flate filters).
 
 ## Development
 

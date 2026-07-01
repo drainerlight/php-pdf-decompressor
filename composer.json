@@ -1,0 +1,35 @@
+{
+    "name": "your-vendor/pdf-unstream",
+    "description": "Pure-PHP conversion of PDF 1.5+ cross-reference streams and object streams into a classic PDF 1.4 structure, so parsers such as FPDI's free parser can read them. MIT-licensed, no external binaries required.",
+    "type": "library",
+    "keywords": ["pdf", "fpdi", "object-stream", "objstm", "xref", "cross-reference-stream", "decompress", "flatedecode"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "TODO: your name"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-zlib": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "PdfUnstream\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PdfUnstream\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

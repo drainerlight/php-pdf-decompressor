@@ -3,8 +3,10 @@
 **Make modern PDFs readable by legacy parsers — in pure PHP.**
 
 [![CI](https://github.com/drainerlight/php-pdf-decompressor/actions/workflows/ci.yml/badge.svg)](https://github.com/drainerlight/php-pdf-decompressor/actions/workflows/ci.yml)
-[![PHP](https://img.shields.io/badge/php-%E2%89%A57.4-8892BF.svg)](https://www.php.net/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Latest Version](https://img.shields.io/packagist/v/drainerlight/php-pdf-decompressor.svg)](https://packagist.org/packages/drainerlight/php-pdf-decompressor)
+[![Total Downloads](https://img.shields.io/packagist/dt/drainerlight/php-pdf-decompressor.svg)](https://packagist.org/packages/drainerlight/php-pdf-decompressor)
+[![PHP Version](https://img.shields.io/packagist/php-v/drainerlight/php-pdf-decompressor.svg)](https://www.php.net/)
+[![License: MIT](https://img.shields.io/packagist/l/drainerlight/php-pdf-decompressor.svg)](LICENSE)
 
 Converts PDF 1.5+ files that use **compressed cross-reference streams** (`/Type /XRef`)
 and **object streams** (`/Type /ObjStm`) into a **classic PDF 1.4** structure that

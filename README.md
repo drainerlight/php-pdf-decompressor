@@ -63,11 +63,13 @@ usage error.
 
 ## Status
 
-**Working (MVP).** `Normalizer::normalize()` converts real PDF 1.5+ files (object
-streams + cross-reference streams) into a classic PDF 1.4 that the free FPDI parser
-reads — verified end-to-end against FPDI, including multi-page production PDFs.
-See [PLANNING.md](PLANNING.md) for the remaining hardening items (e.g. broken-xref
-rebuild, non-Flate filters).
+**Working.** `Normalizer::normalize()` converts real PDF 1.5+ files (object streams
++ cross-reference streams) into a classic PDF 1.4 that the free FPDI parser reads —
+verified end-to-end against FPDI, including multi-page production PDFs. It recovers
+from broken/missing `startxref` by rebuilding the cross-reference table, preserves
+object generation numbers, and rejects encrypted PDFs cleanly. Remaining items:
+non-Flate filters (LZW/ASCII85/…) and `/Extends` object-stream chaining — see
+[PLANNING.md](PLANNING.md).
 
 ## Development
 

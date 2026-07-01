@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PdfDecompressor\Reader;
 
+use PdfDecompressor\Exception\ReaderException;
+
 /**
  * A forward/seekable cursor over the raw PDF bytes (ISO 32000-1, 7.2).
  *
@@ -40,7 +42,7 @@ final class ByteReader
     public function setPosition(int $position): void
     {
         if ($position < 0 || $position > $this->length) {
-            throw new \OutOfRangeException(
+            throw new ReaderException(
                 'Position ' . $position . ' out of range [0, ' . $this->length . '].'
             );
         }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PdfDecompressor\Tests\Unit;
 
+use PdfDecompressor\Exception\ReaderException;
 use PdfDecompressor\Reader\ByteReader;
 use PHPUnit\Framework\TestCase;
 
@@ -57,7 +58,7 @@ class ByteReaderTest extends TestCase
 
     public function testSetPositionOutOfRangeThrows(): void
     {
-        $this->expectException(\OutOfRangeException::class);
+        $this->expectException(ReaderException::class);
         (new ByteReader('abc'))->setPosition(4);
     }
 }

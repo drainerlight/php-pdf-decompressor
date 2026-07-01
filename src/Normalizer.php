@@ -37,7 +37,8 @@ final class Normalizer
         $document = Document::parse($pdfBytes);
         $table    = $document->getCrossReferenceTable();
 
-        $objects = [];
+        $objects     = [];
+        $generations = [];
         foreach ($table->getObjectNumbers() as $objectNumber) {
             if ($objectNumber === 0) {
                 continue; // object 0 is always the free-list head
@@ -57,10 +58,15 @@ final class Normalizer
                 continue;
             }
 
-            $objects[$objectNumber] = $value;
+            $objects[$objectNumber]     = $value;
+            $generations[$objectNumber] = $entry->isUncompressed() ? $entry->getGenerationNumber() : 0;
         }
 
-        return (new PdfWriter())->write($objects, $this->buildTrailer($document->getTrailer()));
+        return (new PdfWriter())->write(
+            $objects,
+            $this->buildTrailer($document->getTrailer()),
+            $generations
+        );
     }
 
     /**

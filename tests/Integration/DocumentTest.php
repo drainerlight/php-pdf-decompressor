@@ -89,6 +89,35 @@ class DocumentTest extends TestCase
         $document->getObject(1);
     }
 
+    public function testRecoversFromBrokenStartxrefClassicPdf(): void
+    {
+        $bytes  = file_get_contents(self::FIXTURES . '/base.pdf');
+        // Point startxref at a bogus offset so the regular parse fails.
+        $broken = preg_replace('~startxref\s+\d+~', "startxref\n999999", $bytes, 1);
+
+        $document = Document::parse($broken);
+        $catalog  = $document->getObject($document->getTrailer()->get('Root')->getObjectNumber());
+        $this->assertSame('Catalog', $catalog->get('Type')->getValue());
+
+        $pages = $document->resolve($catalog->get('Pages'));
+        $this->assertSame(2, $pages->get('Count')->getValue());
+    }
+
+    public function testRecoversFromBrokenStartxrefObjectStreamPdf(): void
+    {
+        $bytes  = file_get_contents(self::FIXTURES . '/compressed.pdf');
+        $broken = preg_replace('~startxref\s+\d+~', "startxref\n999999", $bytes, 1);
+
+        // Rebuild must also unpack the object stream to reach the (compressed)
+        // catalog and pages.
+        $document = Document::parse($broken);
+        $catalog  = $document->getObject($document->getTrailer()->get('Root')->getObjectNumber());
+        $this->assertSame('Catalog', $catalog->get('Type')->getValue());
+
+        $pages = $document->resolve($catalog->get('Pages'));
+        $this->assertSame(2, $pages->get('Count')->getValue());
+    }
+
     public function testEncryptedPdfIsRejected(): void
     {
         // Minimal classic-xref PDF whose trailer declares /Encrypt. Object offsets

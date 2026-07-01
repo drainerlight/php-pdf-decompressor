@@ -8,12 +8,15 @@ use PdfDecompressor\Exception\CrossReferenceException;
 use PdfDecompressor\Filter\StreamDecoder;
 use PdfDecompressor\Lexer\Token;
 use PdfDecompressor\Lexer\Tokenizer;
+use PdfDecompressor\ObjectStream\ObjectStream;
 use PdfDecompressor\Parser\ObjectParser;
 use PdfDecompressor\Reader\ByteReader;
 use PdfDecompressor\Type\PdfArray;
 use PdfDecompressor\Type\PdfDictionary;
+use PdfDecompressor\Type\PdfName;
 use PdfDecompressor\Type\PdfNumeric;
 use PdfDecompressor\Type\PdfObject;
+use PdfDecompressor\Type\PdfReference;
 use PdfDecompressor\Type\PdfStream;
 
 /**
@@ -24,6 +27,10 @@ use PdfDecompressor\Type\PdfStream;
  *
  * Sections are processed newest-first; the first entry seen for an object wins,
  * which is exactly the incremental-update precedence the spec requires.
+ *
+ * When the regular startxref-driven parse is impossible (missing/garbage
+ * startxref, corrupt xref), {@see rebuild()} reconstructs the table by scanning
+ * the file for object definitions.
  */
 final class CrossReferenceReader
 {
@@ -258,5 +265,115 @@ final class CrossReferenceReader
             $result[] = (int) $item->getValue();
         }
         return $result;
+    }
+
+    /**
+     * Reconstruct the cross-reference information by scanning the whole file for
+     * object definitions ("N G obj"), unpacking any object streams found, and
+     * recovering /Root (and /Info, /Encrypt) from the raw bytes. Used when the
+     * regular startxref-driven parse is not possible.
+     */
+    public function rebuild(string $bytes): CrossReferenceTable
+    {
+        $entries = $this->scanObjectDefinitions($bytes);
+        $this->addObjectStreamEntries($bytes, $entries);
+        return new CrossReferenceTable($entries, $this->recoverTrailer($bytes));
+    }
+
+    /**
+     * @return array<int,CrossReferenceEntry>
+     */
+    private function scanObjectDefinitions(string $bytes): array
+    {
+        $entries = [];
+        // Object definitions start a line; anchoring on the preceding EOL avoids
+        // matching "N G obj"-like byte sequences inside binary stream data.
+        if (preg_match_all(
+            '~[\r\n][ \t]*(\d{1,10})[ \t]+(\d{1,5})[ \t]+obj\b~',
+            $bytes,
+            $matches,
+            PREG_OFFSET_CAPTURE
+        )) {
+            foreach ($matches[1] as $i => $numberMatch) {
+                // Later definitions override earlier ones (incremental updates).
+                $entries[(int) $numberMatch[0]] = CrossReferenceEntry::uncompressed(
+                    (int) $numberMatch[1],
+                    (int) $matches[2][$i][0]
+                );
+            }
+        }
+        return $entries;
+    }
+
+    /**
+     * @param array<int,CrossReferenceEntry> $entries
+     */
+    private function addObjectStreamEntries(string $bytes, array &$entries): void
+    {
+        foreach (array_keys($entries) as $number) {
+            $entry = $entries[$number];
+            if (!$entry->isUncompressed()) {
+                continue;
+            }
+            try {
+                $value = (new ObjectParser(new Tokenizer($this->readerAt($bytes, $entry->getOffset()))))
+                    ->parseIndirectObject()
+                    ->getValue();
+            } catch (\Exception $e) {
+                continue;
+            }
+            if (!$value instanceof PdfStream) {
+                continue;
+            }
+            $type = $value->getDictionary()->get('Type');
+            if (!$type instanceof PdfName || $type->getValue() !== 'ObjStm') {
+                continue;
+            }
+            try {
+                $objectStream = ObjectStream::fromStream($value);
+            } catch (\Exception $e) {
+                continue;
+            }
+            $index = 0;
+            foreach ($objectStream->getObjectNumbers() as $memberNumber) {
+                if (!isset($entries[$memberNumber])) {
+                    $entries[$memberNumber] = CrossReferenceEntry::compressed($number, $index);
+                }
+                $index++;
+            }
+        }
+    }
+
+    private function recoverTrailer(string $bytes): PdfDictionary
+    {
+        $root = $this->lastReferenceInBytes($bytes, 'Root');
+        if ($root === null) {
+            throw new CrossReferenceException('Cross-reference rebuild failed: no /Root reference found.');
+        }
+
+        $entries = ['Root' => $root];
+        foreach (['Info', 'Encrypt'] as $key) {
+            $reference = $this->lastReferenceInBytes($bytes, $key);
+            if ($reference !== null) {
+                $entries[$key] = $reference;
+            }
+        }
+        return new PdfDictionary($entries);
+    }
+
+    private function lastReferenceInBytes(string $bytes, string $key): ?PdfReference
+    {
+        if (!preg_match_all('~/' . $key . '\s+(\d+)\s+(\d+)\s+R\b~', $bytes, $matches)) {
+            return null;
+        }
+        $last = count($matches[1]) - 1;
+        return new PdfReference((int) $matches[1][$last], (int) $matches[2][$last]);
+    }
+
+    private function readerAt(string $bytes, int $offset): ByteReader
+    {
+        $reader = new ByteReader($bytes);
+        $reader->setPosition($offset);
+        return $reader;
     }
 }

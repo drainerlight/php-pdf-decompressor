@@ -28,10 +28,11 @@ final class PdfWriter
     }
 
     /**
-     * @param array<int,PdfObject> $objects  objectNumber => value (0 is reserved)
-     * @param PdfDictionary        $trailer  trailer entries (/Size is set here)
+     * @param array<int,PdfObject> $objects     objectNumber => value (0 is reserved)
+     * @param PdfDictionary        $trailer     trailer entries (/Size is set here)
+     * @param array<int,int>       $generations objectNumber => generation (default 0)
      */
-    public function write(array $objects, PdfDictionary $trailer): string
+    public function write(array $objects, PdfDictionary $trailer, array $generations = []): string
     {
         ksort($objects);
         $size = ($objects === [] ? 0 : max(array_keys($objects))) + 1;
@@ -40,7 +41,9 @@ final class PdfWriter
         $offsets = [];
         foreach ($objects as $number => $object) {
             $offsets[$number] = strlen($out);
-            $out .= $number . " 0 obj\n" . $this->serializer->serialize($object) . "\nendobj\n";
+            $generation = $generations[$number] ?? 0;
+            $out .= $number . ' ' . $generation . " obj\n"
+                . $this->serializer->serialize($object) . "\nendobj\n";
         }
 
         $xrefOffset = strlen($out);
@@ -48,7 +51,7 @@ final class PdfWriter
         $out       .= "0000000000 65535 f\r\n"; // object 0: head of the free list
         for ($number = 1; $number < $size; $number++) {
             if (isset($offsets[$number])) {
-                $out .= sprintf("%010d 00000 n\r\n", $offsets[$number]);
+                $out .= sprintf("%010d %05d n\r\n", $offsets[$number], $generations[$number] ?? 0);
             } else {
                 $out .= "0000000000 00000 f\r\n";
             }

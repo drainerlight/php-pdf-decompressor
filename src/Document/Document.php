@@ -58,8 +58,23 @@ final class Document implements ObjectResolver
      */
     public static function parse(string $bytes): self
     {
-        $table    = (new CrossReferenceReader())->read($bytes);
-        $document = new self($bytes, $table);
+        $reader   = new CrossReferenceReader();
+        $document = null;
+
+        // Prefer the startxref-driven table, but only if its /Root actually
+        // resolves — a table that parses yet points at stale offsets is useless.
+        try {
+            $candidate = new self($bytes, $reader->read($bytes));
+            if ($candidate->rootIsResolvable()) {
+                $document = $candidate;
+            }
+        } catch (\Exception $e) {
+            // fall through to the rebuild
+        }
+
+        if ($document === null) {
+            $document = new self($bytes, $reader->rebuild($bytes));
+        }
 
         if ($document->isEncrypted()) {
             throw new EncryptionNotSupportedException(
@@ -68,6 +83,23 @@ final class Document implements ObjectResolver
         }
 
         return $document;
+    }
+
+    /**
+     * Whether the trailer's /Root reference resolves to a dictionary. Used to
+     * detect a structurally-valid but stale cross-reference table.
+     */
+    private function rootIsResolvable(): bool
+    {
+        $root = $this->crossReferenceTable->getTrailer()->get('Root');
+        if (!$root instanceof PdfReference) {
+            return false;
+        }
+        try {
+            return $this->getObject($root->getObjectNumber()) instanceof PdfDictionary;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     public function getTrailer(): PdfDictionary

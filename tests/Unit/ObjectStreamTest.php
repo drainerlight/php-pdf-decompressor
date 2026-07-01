@@ -69,4 +69,22 @@ class ObjectStreamTest extends TestCase
     {
         $this->assertNull($this->buildObjectStream()->getObjectByNumber(999));
     }
+
+    public function testObjectBoundaryPreventsLookaheadBleed(): void
+    {
+        // obj10 is the integer "1"; the bytes that follow ("0 R") would, without
+        // bounding, make it parse as the reference "1 0 R". Bounding keeps it 1.
+        $header = "10 0 11 2\n";      // pairs (10,0) (11,2)
+        $data   = $header . '1 0 R';  // obj10 = "1", obj11 region = "0 R"
+
+        $dictionary = new PdfDictionary([
+            'N'     => new PdfNumeric(2),
+            'First' => new PdfNumeric(strlen($header)),
+        ]);
+        $objectStream = ObjectStream::fromStream(new PdfStream($dictionary, $data));
+
+        $object = $objectStream->getObjectByNumber(10);
+        $this->assertInstanceOf(PdfNumeric::class, $object);
+        $this->assertSame(1, $object->getValue());
+    }
 }

@@ -35,6 +35,9 @@ final class ObjectStream
     /** @var array<int,int> objectNumber => index */
     private $indexByNumber;
 
+    /** @var int[] sorted, unique absolute start offsets of the contained objects */
+    private $sortedStarts;
+
     /**
      * @param array<int,array{0:int,1:int}> $pairs
      */
@@ -44,9 +47,13 @@ final class ObjectStream
         $this->first         = $first;
         $this->pairs         = $pairs;
         $this->indexByNumber = [];
+        $starts              = [];
         foreach ($pairs as $index => $pair) {
             $this->indexByNumber[$pair[0]] = $index;
+            $starts[]                      = $first + $pair[1];
         }
+        sort($starts);
+        $this->sortedStarts = array_values(array_unique($starts));
     }
 
     public static function fromStream(PdfStream $stream): self
@@ -94,7 +101,7 @@ final class ObjectStream
         if (!isset($this->pairs[$index])) {
             return null;
         }
-        return $this->parseAt($this->first + $this->pairs[$index][1]);
+        return $this->parseObjectAt($this->first + $this->pairs[$index][1]);
     }
 
     /**
@@ -109,11 +116,24 @@ final class ObjectStream
         return $this->getObjectByIndex($this->indexByNumber[$objectNumber]);
     }
 
-    private function parseAt(int $position): PdfObject
+    private function parseObjectAt(int $start): PdfObject
     {
-        $reader = new ByteReader($this->data);
-        $reader->setPosition($position);
-        return (new ObjectParser(new Tokenizer($reader)))->parseObject();
+        // Bound the parse to this object's extent (up to the next object's start)
+        // so look-ahead (e.g. "N G R" reference detection) can never bleed into
+        // the following object in the stream.
+        $end   = $this->endOffset($start);
+        $slice = substr($this->data, $start, max(0, $end - $start));
+        return (new ObjectParser(new Tokenizer(new ByteReader($slice))))->parseObject();
+    }
+
+    private function endOffset(int $start): int
+    {
+        foreach ($this->sortedStarts as $offset) {
+            if ($offset > $start) {
+                return $offset;
+            }
+        }
+        return strlen($this->data);
     }
 
     private static function intValue(?PdfObject $object): ?int
